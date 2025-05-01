@@ -11,6 +11,7 @@
 <body> -> <rSt> | <StS>;<rSt>
 <Di> -> 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 <DiS> -> <Di> | <Di><DiS>
+<NuS> -> <DiS> | <DiS>,<NuS>
 <Le> -> A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z | a | b | c | d | e | f | g | h | i | j | k | l | m | n | o | p | q | r | s | t | u | v | w | x | y | z
 <DiLe> -> <Le> | <Di>
 <DiLeS> -> <DiLe> | <DiLe><DiLeS>
@@ -26,7 +27,7 @@
 <BF> -> (bool)<id> | <Atom> | !<BF> | (<BE>)
 <BT> -> <BF> | <BT>&&<BF>
 <BE> -> <BT> | <BE>||<BT>
-<St> -> <id>=<E> | <id>=<BE> | <id>=<CC> | if <BE> {<StS>} | if <BE> {<StS>} else {<StS>} | while <BE> {<StS>} | <id>=<Na>(<PaS>) | <id>=<Na>() | <id>=new <Na>'
+<St> -> <id>=<E> | <id>=<BE> | <id>=<CC> | if <BE> {<StS>} | if <BE> {<StS>} else {<StS>} | while <BE> {<StS>} | <id>=<Na>(<PaS>) | <id>=<Na>() | <id>=new <Na>' | <id>=gpr(<DiS>) | <id>=gpr(<DiS>) {<NuS>} | gpr(<DiS>)=<id> | gpr(<DiS>)=<id> {<NuS>}
 <rSt> -> return <E> | return <BE> | return <CC>
 <Pa> -> <E> | <BE> | <CC>
 <PaS> -> <Pa> | <PaS>,<Pa>

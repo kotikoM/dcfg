@@ -12,6 +12,7 @@ int
 new
 if
 else
+gpr
 0
 1
 2

@@ -10,6 +10,7 @@ import table.FunctionTable;
 import tree.DTE;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static codegen.ConstantEvaluator.evaluateCharacterConstant;
 import static codegen.ExpressionEvaluator.evaluateBooleanExpression;
@@ -113,8 +114,22 @@ public class CodeGenerator {
     private void generateSt(DTE st) throws Exception {
         checkTokenType(st, "<St>");
 
-        // <id> = <E> | <id> = <BE> | <id> = <CC> | <id> = <Na>(<PaS>?) | <id> = new <Na>*
-        if (st.getNthSon(2).isType("=")) {
+        // gpr(<DiS>) = <id> | gpr(<DiS>) = <id> {<NuS>} 
+        if (st.getFirstSon().isType("gpr")) {
+            
+            DTE registerIdx = st.getNthSon(3); 
+            DTE id = st.getNthSon(6);
+            generateWriteGPR(registerIdx, id);
+        }
+        // <id> = gpr(<DiS>) | gpr(<DiS>) = <id> {<NuS>}
+        else if (st.getNthSon(3).isType("gpr")){
+            DTE id = st.getFirstSon();
+            DTE registerIdx = st.getNthSon(5);
+            generateReadGPR(id, registerIdx); 
+        }
+
+        // <id> = <E> | <id> = <BE> | <id> = <CC> | <id> = <Na>(<PaS>?) | <id> = new <Na>* | <id> = gpr(<Dis>) | <id> = gpr(<Dis>) {<NuS}
+        else if (st.getNthSon(2).isType("=")) {
             DTE id = st.getFirstSon();
             DTE exp = st.getNthSon(3);
 
@@ -131,6 +146,7 @@ public class CodeGenerator {
         else if (st.getFirstSon().isType("if")) {
             generateIfStatement(st.getFirstSon());
         }
+        
 
         // Invalid statement | Unhandled case
         else {
@@ -138,6 +154,62 @@ public class CodeGenerator {
         }
     }
 
+    public void generateWriteGPR(DTE registerIdx, DTE id) throws Exception {
+    
+        // gpr(<DiS>) = <id> | gpr(<DiS>) = <id> {<NuS>} 
+        String content = registerIdx.getBorderWord();
+        String restrictedRegister = "0";
+        int idx = Integer.parseInt(content);
+
+        if (idx > 31){
+            throw new IllegalArgumentException("Register index - " + idx + " is out of bound");
+        }
+        if (idx == 0){
+            throw new IllegalArgumentException("Register index - " + idx + " is reserved");
+        }
+
+        if (id.getNthBrother(1) != null){
+            restrictedRegister = id.getNthBrother(2).getBorderWord();
+        }
+        
+        List<Integer> restrictedRegisterList = Arrays.stream(restrictedRegister.split(",")).map(Integer::parseInt).collect(Collectors.toList());
+        for (int reg : restrictedRegisterList) {
+            Configuration.getInstance().occupyRegister(reg);
+        }    
+        VarReg varRegId = evaluateId(id, false);
+        addInstruction(Instruction.addi(idx, varRegId.register, 0));
+        for (int reg : restrictedRegisterList) {
+            Configuration.getInstance().freeRegister(reg);
+        }    
+
+
+
+    }
+
+    public void generateReadGPR(DTE id, DTE registerIdx) throws Exception {
+        
+        // <id> = gpr(<DiS>) | <id> = gpr(<DiS>) {<NuS>}
+        String content = registerIdx.getBorderWord();
+        String restrictedRegister = content;
+        int idx = Integer.parseInt(content);
+        if (idx > 31){
+            throw new IllegalArgumentException("Register Index - " + idx + " is out of bound");
+        }
+        if (id.getNthBrother(6) != null){
+            restrictedRegister = content + "," + id.getNthBrother(7).getBorderWord();
+        }
+    
+        List<Integer> restrictedRegisterList = Arrays.stream(restrictedRegister.split(",")).map(Integer::parseInt).collect(Collectors.toList());
+        for (int reg : restrictedRegisterList) {
+            Configuration.getInstance().occupyRegister(reg);
+        }   
+        VarReg varRegId = evaluateId(id, true);
+        addInstruction(Instruction.sw(idx, varRegId.register, 0));
+        for (int reg : restrictedRegisterList) {
+            Configuration.getInstance().freeRegister(reg);
+        }    
+
+    }
     public void generateAssignment(DTE id, DTE value) throws Exception {
         // <id> = value
         // E -> T -> F -> C -> DiS -> Di -> 1

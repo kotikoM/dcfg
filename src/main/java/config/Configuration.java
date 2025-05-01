@@ -65,6 +65,13 @@ public class Configuration {
         return -1;
     }
 
+    public void occupyRegister(int index) {
+        index --; 
+        if (index >= 0 && index <= occupiedRegisters.length){
+            occupiedRegisters[index] = true; 
+        }
+    }
+
     public FunctionCall callFunction(String functionName, VarReg resultDestination) throws FunctionException {
         int displacement = 0;
 

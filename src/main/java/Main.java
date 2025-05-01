@@ -2,6 +2,9 @@ import codegen.CodeGenerator;
 import config.Configuration;
 import dk.DK1;
 import grammar.Grammar;
+import grammar.Symbol.SymbolType;
+import model.VarReg;
+import grammar.Symbol;
 import table.FunctionTable;
 import table.MemoryTable;
 import table.TypeTable;
@@ -9,7 +12,10 @@ import tree.DTE;
 import util.TypeUtils;
 
 import java.io.*;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Scanner;
+import java.util.stream.Collectors;
 
 import static util.Context.DEBUG;
 import static util.Logger.log;
@@ -72,51 +78,64 @@ public class Main {
         log("-----------------------");
         log("\n");
 
+        String code = "int a; int b; char c; int main(){gpr(1) = b; gpr(2) = a {1}; gpr(3) = c {2, 1}; return 0}~";
+        // code =  "typedef int[6] arr; arr a; int b; char c; int main(){a[3] = gpr(1) {2, 3, 5}; b = gpr(2) {1, 3}; c = gpr(3); return 1}~"; 
+        DTE parsedT = dk1.parseString(code);
+        parsedT.printTree();
+        fillTables(parsedT);
+
+        CodeGenerator.getInstance().setGrammar(g);
+        CodeGenerator.getInstance().generateCode();
+
+        System.out.println("C0: " + code);
+        CodeGenerator.getInstance().printInstructions();
+
+    
 
         BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-        while (true) {
-            System.out.println("code:");
-            String path = reader.readLine();
-            File file = new File(path);
-            Scanner sc = new Scanner(file);
-            StringBuilder code = new StringBuilder();
-            String outputFileName = path.replace(".c0", ".asm");
+        // while (true) {
+        //     System.out.println("code:");
+        //     String path = reader.readLine();
+        //     File file = new File(path);
+        //     Scanner sc = new Scanner(file);
+        //     StringBuilder code = new StringBuilder();
+        //     String outputFileName = path.replace(".c0", ".asm");
 
 
-            BufferedWriter writer = new BufferedWriter(new FileWriter(outputFileName));
+        //     BufferedWriter writer = new BufferedWriter(new FileWriter(outputFileName));
 
-            while (sc.hasNext()) {
-                code.append(sc.nextLine()).append("\n");
-            }
+        //     while (sc.hasNext()) {
+        //         code.append(sc.nextLine()).append("\n");
+        //     }
 
-            try {
-                DTE parsedTree = dk1.parseString(code.toString());
+        //     try {
+        //         DTE parsedTree = dk1.parseString(code.toString());
 
-                // Print the ParsedTree
-                log("The Parse Tree: ");
-                parsedTree.printTree();
+        //         // Print the ParsedTree
+        //         log("The Parse Tree: ");
+        //         parsedTree.printTree();
 
-                fillTables(parsedTree);
+        //         fillTables(parsedTree);
 
-                CodeGenerator.getInstance().setGrammar(g);
-                CodeGenerator.getInstance().generateCode();
+        //         CodeGenerator.getInstance().setGrammar(g);
+        //         CodeGenerator.getInstance().generateCode();
 
-                System.out.println("C0: " + code);
-                CodeGenerator.getInstance().printInstructions();
+        //         System.out.println("C0: " + code);
+        //         CodeGenerator.getInstance().printInstructions();
 
-                writer.write(CodeGenerator.getInstance().getInstructions());
-                writer.close();
+        //         writer.write(CodeGenerator.getInstance().getInstructions());
+        //         writer.close();
 
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+        //     } catch (Exception e) {
+        //         e.printStackTrace();
+        //     }
 
-            TypeTable.reset();
-            MemoryTable.reset();
-            FunctionTable.reset();
-            Configuration.reset();
-            CodeGenerator.reset();
-        }
+        //     TypeTable.reset();
+        //     MemoryTable.reset();
+        //     FunctionTable.reset();
+        //     Configuration.reset();
+        //     CodeGenerator.reset();
+        // }
 
     }
 }
