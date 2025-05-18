@@ -81,7 +81,7 @@ public class IdEvaluator {
             VarReg index = evaluateExpression(nestedIndex);
 
             // gpr(23) = enc(size(t))
-            int arrSize = array.type.arraySize;
+            int arrSize = array.type.getArrayCompTargetType().size;
             // storing encoded size in $23
             cg().addInstruction("macro: gpr(23) = enc(" + arrSize + ", uint)");
 
@@ -95,8 +95,10 @@ public class IdEvaluator {
             Configuration.getInstance().freeRegister(index.register);
 
             assert array.variable != null;
-            VarReg result = new VarReg(array.register, array.variable.getType().getArrayCompTargetType());
-
+            Variable arrayVariable = new Variable(array.variable.getName() + "[" + nestedIndex.getBorderWord() + "]", array.variable.getBaseAddress(), array.variable.getType().getArrayCompTargetType(),  array.variable.getDisplacement() + arrSize);
+            VarReg result = new VarReg(arrayVariable, array.register);
+            log("ARRAY " + arrayVariable);
+          
             if (!lv) {
                 cg().addInstruction(Instruction.deref(result.register));
             }

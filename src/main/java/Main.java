@@ -12,6 +12,7 @@ import tree.DTE;
 import util.TypeUtils;
 
 import java.io.*;
+import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
@@ -79,7 +80,7 @@ public class Main {
         log("\n");
 
         String code = "int a; int b; char c; int main(){gpr(1) = b; gpr(2) = a {1}; gpr(3) = c {2, 1}; return 0}~";
-        // code =  "typedef int[6] arr; arr a; int b; char c; int main(){a[3] = gpr(1) {2, 3, 5}; b = gpr(2) {1, 3}; c = gpr(3); return 1}~"; 
+        code =  "typedef struct {int va1; int va2} arr; typedef arr[7] parr; typedef parr[5] pparr; pparr a; int b; int cool(int c, int d){return 1}; int main(){b = a[4][2 - 1].va1; b = cool(2, 3); a[1][2].va2 = 2; return 1}~"; 
         DTE parsedT = dk1.parseString(code);
         parsedT.printTree();
         fillTables(parsedT);
@@ -90,7 +91,9 @@ public class Main {
         System.out.println("C0: " + code);
         CodeGenerator.getInstance().printInstructions();
 
-    
+        // TypeTable.getInstance().printTable();
+        // MemoryTable.getInstance().printTable();
+        // FunctionTable.getInstance().printTable();
 
         BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
         // while (true) {
