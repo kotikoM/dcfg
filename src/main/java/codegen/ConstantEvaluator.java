@@ -28,11 +28,12 @@ public class ConstantEvaluator {
         if (value.charAt(value.length() - 1) != 'u') {
             intValue = Integer.parseInt(value);
             type = VarType.INT_TYPE;
-            instr = Instruction.addi(register, 0, intValue);
+            instr = "macro: gpr(" + register + ") = enc(" + intValue + ", int)";
         } else {
             intValue = Integer.parseInt(value.substring(0, value.length() - 1));
             type = VarType.UINT_TYPE;
             instr = Instruction.addiu(register, 0, intValue);
+            instr = "macro: gpr(" + register + ") = enc(" + intValue + ", uint)";
         }
 
         cg().addInstruction(instr);
@@ -45,7 +46,7 @@ public class ConstantEvaluator {
         int register = Configuration.getInstance().getFirstFreeRegister();
         int value = bc.getFirstSon().labelContent().equals("true") ? 1 : 0;
 
-        String instr = Instruction.addi(register, 0, value);
+        String instr = "macro: gpr(" + register + ") = enc(" + value + ", bool)";
         cg().addInstruction(instr);
 
         return new VarReg(register, VarType.BOOL_TYPE);
@@ -61,7 +62,7 @@ public class ConstantEvaluator {
 
         int register = Configuration.getInstance().getFirstFreeRegister();
 
-        String instr = Instruction.addi(register, 0, value.charAt(0));
+        String instr = "macro: gpr(" + register + ") = enc(" + value.charAt(0) + ", char)";
         cg().addInstruction(instr);
 
         return new VarReg(register, VarType.CHAR_TYPE);

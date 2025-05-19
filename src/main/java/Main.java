@@ -80,7 +80,8 @@ public class Main {
         log("\n");
 
         String code = "int a; int b; char c; int main(){gpr(1) = b; gpr(2) = a {1}; gpr(3) = c {2, 1}; return 0}~";
-        code =  "typedef struct {int va1; int va2} arr; typedef arr[7] parr; typedef parr[5] pparr; pparr a; int b; int cool(int c, int d){return 1}; int main(){b = a[4][2 - 1].va1; b = cool(2, 3); a[1][2].va2 = 2; return 1}~"; 
+        code = "typedef struct {int va1; int va2} arr; typedef arr[7] parr; typedef parr[5] pparr; pparr a; int b; int cool(int c, int d){int a; return 1}; int main(){b = a[4][2 - 1].va1; b = cool(2, 3); a[1][2].va2 = 2; b = 2 / 0; return 1}~"; 
+        code = "int i; bool b; uint c; char d; int main(){b = true; i = -131072; c = 12u; d = !; return 1}~";
         DTE parsedT = dk1.parseString(code);
         parsedT.printTree();
         fillTables(parsedT);
