@@ -20,6 +20,7 @@ public class Fun {
                 ", returnType= " + (returnType == null ? "void" : returnType.name) +
                 ", memoryStruct= " + memoryStruct +
                 ", numParameters= " + numParameters +
+                ", numLocalVariables= " + numLocalVariables + 
                 ", body = " + body.toString();
     }
 
@@ -35,6 +36,7 @@ public class Fun {
 
      */
     private final int numParameters;
+    private final int numLocalVariables; 
     private final DTE body;
 
 
@@ -42,11 +44,13 @@ public class Fun {
                VarType returnType,
                Variable memoryStruct,
                int numParameters,
+               int numLocalVariables, 
                DTE body) {
         this.name = name;
         this.returnType = returnType;
         this.memoryStruct = memoryStruct;
         this.numParameters = numParameters;
+        this.numLocalVariables = numLocalVariables;
         this.body = body;
     }
 
@@ -64,6 +68,10 @@ public class Fun {
 
     public int getNumParameters() {
         return numParameters;
+    }
+
+    public int getNumLocalVariables(){
+        return numLocalVariables; 
     }
 
     public DTE getBody() {
@@ -86,6 +94,7 @@ public class Fun {
         public Fun build() throws TypeDefException, MemoryStructException {
 
             int numParameters;
+            int numLocalVariables;
             if (pads == null) {
                 numParameters = 0;
             } else {
@@ -93,6 +102,12 @@ public class Fun {
 //                numParameters = pads.getChildrenSize();
             }
 
+            if (vads == null){
+                numLocalVariables = 0;
+            }
+            else {
+                numLocalVariables = vads.getFlattenedSequence().size();
+            }
             List<List<String>> componentPairs = extractComponentPairs();
 
             VarType.Builder structBuilder;
@@ -107,7 +122,7 @@ public class Fun {
             }
 
 
-            return new Fun(name, returnType, memoryStruct, numParameters, body);
+            return new Fun(name, returnType, memoryStruct, numParameters, numLocalVariables, body);
         }
 
         public List<List<String>> extractComponentPairs() {

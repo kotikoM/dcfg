@@ -72,7 +72,20 @@ public class Configuration {
         }
     }
 
-    public FunctionCall callFunction(String functionName, VarReg resultDestination) throws FunctionException {
+    // public FunctionCall callFunction(String functionName, VarReg resultDestination) throws FunctionException {
+    //     int displacement = 0;
+
+    //     if (!stack.isEmpty()) {
+    //         displacement = currentFunction().getSize() + top().getDisplacement() + 4;
+    //     }
+
+    //     Fun function = FunctionTable.getInstance().getFunction(functionName);
+    //     FunctionCall call = new FunctionCall(recursionDepth++, function, resultDestination, displacement);
+    //     stack.add(call);
+    //     return call;
+    // }
+
+    public FunctionCall callFunction(String functionName) throws FunctionException {
         int displacement = 0;
 
         if (!stack.isEmpty()) {
@@ -80,7 +93,7 @@ public class Configuration {
         }
 
         Fun function = FunctionTable.getInstance().getFunction(functionName);
-        FunctionCall call = new FunctionCall(recursionDepth++, function, resultDestination, displacement);
+        FunctionCall call = new FunctionCall(recursionDepth++, function, displacement);
         stack.add(call);
         return call;
     }

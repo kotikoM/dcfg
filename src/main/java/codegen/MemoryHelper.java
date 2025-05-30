@@ -29,7 +29,7 @@ public class MemoryHelper {
                 Instruction.blez(reg, 4),
                 "macro: gpr(1) = enc(44, uint) # stack overflow",
                 Instruction.sysc(),
-                Instruction.addi(SPT, SPT, size + 4) + " # end of increasing spt"
+                Instruction.addi(SPT, SPT, size + 8) + " # end of increasing spt"
         ).forEach(CodeGenerator.getInstance()::addInstruction);
         Configuration.getInstance().freeRegister(reg);
     }

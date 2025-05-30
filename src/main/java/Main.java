@@ -92,6 +92,7 @@ public class Main {
         // code = "typedef uint' ptr; typedef uint[2] arr; arr a; ptr b; uint c; int main(){c = a[0]; b = c&; return 1}~";
         // code = "int a; int main(){a = runvm(); return 1}; int runvm(){asm( macro: restore-user ); return 1}~";
         code = "int a; int b; int cool(int b){b = 1; return 1}; int gg(){return 2}; int main(){a = 1; b = cool(a); b = gg(); return 1}~";
+        code = "typedef int[2] arr; int a; int b; int cool(int b){b = 1; return 1}; int gg(int a, int b, bool g){int c; arr x; int d; return 2}; int main(){a = 1; a = gg(2, 3, true); a = 2+3; return 1}~";
         DTE parsedT = dk1.parseString(code);
         parsedT.printTree();
         fillTables(parsedT);

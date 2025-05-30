@@ -69,7 +69,7 @@ public class CodeGenerator {
         log("starting generation for `main`");
 
         try {
-            FunctionCall mainCall = Configuration.getInstance().callFunction("main", null);
+            FunctionCall mainCall = Configuration.getInstance().callFunction("main");
             functionInstructions.put("main", new LinkedList<>());
             generateCodeForFunctionCall(mainCall);
         } catch (Exception e) {
@@ -83,10 +83,9 @@ public class CodeGenerator {
 
         // all calls, except `main`, will store return address on address SPT - (size($f)+4), from register 31
         // function is not main, if result destination is defined
-        if (call.getResultDestination() != null) {
+        if (!call.getFunction().getName().equals("main")) {
             int reg = Configuration.getInstance().getFirstFreeRegister();
-            addInstruction(Instruction.addi(reg, 0, -call.getFunction().getSize() - 4));
-            addInstruction(Instruction.sw(RA, reg, 0));
+            addInstruction(Instruction.sw(31, SPT, -(call.getFunction().getSize() + 8)));
             Configuration.getInstance().freeRegister(reg);
         }
 
@@ -284,7 +283,7 @@ public class CodeGenerator {
 
         if (!functionInstructions.containsKey(functionName)) {
             functionInstructions.put(functionName, new LinkedList<>());
-            FunctionCall call = Configuration.getInstance().callFunction(functionName, null);
+            FunctionCall call = Configuration.getInstance().callFunction(functionName);
             generateCodeVoidFunctionCall(call);
         }
 
@@ -294,26 +293,12 @@ public class CodeGenerator {
     public void generateAssignment(DTE id, DTE value) throws Exception {
         // <id> = value
         // E -> T -> F -> C -> DiS -> Di -> 1
-        VarReg varRegId = evaluateId(id, true);
+        VarReg varRegId;
         VarReg varRegValue;
-
-        // case split for type of value
-        if (value.isType("<E>")) {
-            varRegValue = evaluateExpression(value);
-        } else if (value.isType("<BE>")) {
-            varRegValue = evaluateBooleanExpression(value);
-        } else if (value.isType("<CC>")) {
-            varRegValue = evaluateCharacterConstant(value);
-        } else if (value.isType("new")) {
-            addInstruction(Instruction.sw(HPT, varRegId.register, 0));
-
-            int varSize = varRegId.type.size;
-            increaseHeapPointer(varSize);
-
-            return;
-        } else { // id = Na() | id = Na(PaS) left
-            retainedRegister = varRegId.register;
-            checkTokenType(value, "<Na>");
+        
+        if (value.isType("<Na>")){
+            // id = Na() | id = Na(PaS) left
+            // checkTokenType(value, "<Na>");
 
             String functionName = value.getBorderWord();
             log("function call: " + functionName);
@@ -321,20 +306,45 @@ public class CodeGenerator {
             Fun function = FunctionTable.getInstance().getFunction(functionName);
             increaseStackPointer(function.getSize());
 
+            varRegId = evaluateId(id, true);
+            addInstruction(Instruction.sw(varRegId.register, SPT, -(function.getSize() + 4)));
+            Configuration.getInstance().freeRegister(varRegId.register);
+
 
             if (value.getNthBrother(2).isType("<PaS>")) {
                 log("found parameters: " + value.getNthBrother(2).getBorderWord());
                 setParameters(function, value.getNthBrother(2));
             }
 
-            initializeLocalVariables(function);
+            if (function.getNumLocalVariables() > 0){
+                initializeLocalVariables(function);
+            }
+            
+            
             addInstruction(Instruction.jal("_" + functionName));
 
             if (!functionInstructions.containsKey(functionName)) {
                 functionInstructions.put(functionName, new LinkedList<>());
-                FunctionCall call = Configuration.getInstance().callFunction(functionName, varRegId);
+                FunctionCall call = Configuration.getInstance().callFunction(functionName);
                 generateCodeForFunctionCall(call);
             }
+
+            return;
+        }
+        varRegId = evaluateId(id, true);
+        // case split for type of value
+        if (value.isType("<E>")) {
+            varRegValue = evaluateExpression(value);
+        } else if (value.isType("<BE>")) {
+            varRegValue = evaluateBooleanExpression(value);
+        } else if (value.isType("<CC>")) {
+            varRegValue = evaluateCharacterConstant(value);
+        } else  {
+            checkTokenType(value, "new");
+            addInstruction(Instruction.sw(HPT, varRegId.register, 0));
+
+            int varSize = varRegId.type.size;
+            increaseHeapPointer(varSize);
 
             return;
         }
@@ -345,7 +355,7 @@ public class CodeGenerator {
         addInstruction(instr);
         Configuration.getInstance().freeRegister(varRegValue.register);
 
-        Configuration.getInstance().freeRegister(varRegValue.register);
+        Configuration.getInstance().freeRegister(varRegId.register);
     }
 
     public void printInstructions() {
@@ -458,7 +468,7 @@ public class CodeGenerator {
 
     private void generateRSt(DTE rSt, FunctionCall call) throws Exception {
         checkTokenType(rSt, "<rSt>");
-        assert call.getResultDestination() != null;
+        // assert call.getResultDestination() != null;
 
         VarReg expr;
         DTE node = rSt.getNthSon(2);
@@ -474,12 +484,12 @@ public class CodeGenerator {
 
 
         // get the result address, decrease stack pointer, and return
-        if (call.getResultDestination() != null) {
-            addInstruction(Instruction.sw(expr.register, call.getResultDestination().register, 0) + " # start of return from " + call.getFunction().getName());
-            int frameSize = call.getFunction().getSize() + 4;
+        if (!call.getFunction().getName().equals("main")) {
+            int frameSize = call.getFunction().getSize();
+            addInstruction(Instruction.sw(expr.register, SPT, -(frameSize + 4)) + " # start of return from " + call.getFunction().getName());
 
-            addInstruction(Instruction.lw(1, SPT, -frameSize));
-            addInstruction(Instruction.addi(SPT, SPT, -frameSize));
+            addInstruction(Instruction.lw(1, SPT, -(frameSize + 8)));
+            addInstruction(Instruction.addi(SPT, SPT, -(frameSize + 8)));
             addInstruction(Instruction.jr(1) + " # end of return from " + call.getFunction().getName());
 
             retainedRegister = -1;
@@ -547,9 +557,9 @@ public class CodeGenerator {
         int firstReg = Configuration.getInstance().getFirstFreeRegister();
         int secondReg = Configuration.getInstance().getFirstFreeRegister();
 
-        CodeGenerator.getInstance().addInstruction(Instruction.add(firstReg, SPT, rt));
-        CodeGenerator.getInstance().addInstruction(Instruction.addi(secondReg, 0, memoryWordsOccupied));
-        CodeGenerator.getInstance().addInstruction("macro: zero($" + firstReg + ", $" + secondReg + ")");
+        CodeGenerator.getInstance().addInstruction(Instruction.addi(firstReg, SPT, rt));
+        CodeGenerator.getInstance().addInstruction(Instruction.addi(secondReg, 0, memoryWordsOccupied / 4));
+        CodeGenerator.getInstance().addInstruction("macro: zero(" + firstReg + ", " + secondReg + ")");
 
         Configuration.getInstance().freeRegister(firstReg);
         Configuration.getInstance().freeRegister(secondReg);
