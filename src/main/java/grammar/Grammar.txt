@@ -6,7 +6,7 @@
 <VaDS> -> <VaD> | <VaDS>;<VaD>
 <VaD> -> <Ty> <Na>
 <FuDS> -> <FuD> | <FuDS>;<FuD>
-<FuD> -> <Ty> <Na>(<PaDS>){<VaDS>;<body>} | <Ty> <Na>(<PaDS>){<body>} | <Ty> <Na>(){<VaDS>;<body>} | <Ty> <Na>(){<body>}
+<FuD> -> <Ty> <Na>(<PaDS>){<VaDS>;<body>} | <Ty> <Na>(<PaDS>){<body>} | <Ty> <Na>(){<VaDS>;<body>} | <Ty> <Na>(){<body>} | void <Na>(<PaDS>){<VaDS>;<StS>} | void <Na>(<PaDS>){<StS>} | void <Na>(){<VaDS>;<StS>} | void <Na>(){<StS>}
 <PaDS> -> <VaD> | <PaDS>,<VaD>
 <body> -> <rSt> | <StS>;<rSt>
 <Di> -> 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
@@ -15,6 +15,9 @@
 <Le> -> A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z | a | b | c | d | e | f | g | h | i | j | k | l | m | n | o | p | q | r | s | t | u | v | w | x | y | z
 <DiLe> -> <Le> | <Di>
 <DiLeS> -> <DiLe> | <DiLe><DiLeS>
+<DiLeCC> -> <DiLe> | : | -
+<DiLeCCS> -> <DiLeCC> | <DiLeCCS><DiLeCC>
+<ASM> -> <DiLeCCS> | <ASM> <DiLeCCS>
 <Na> -> <Le> | <Le><DiLeS>
 <C> -> <DiS> | <DiS>u | null
 <CC> -> ! | " | # | $ | % | & | | | ' | ( | ) | * | + | , | - | . | / | : | ; | < | = | > | ? | @
@@ -27,7 +30,7 @@
 <BF> -> (bool)<id> | <Atom> | !<BF> | (<BE>)
 <BT> -> <BF> | <BT>&&<BF>
 <BE> -> <BT> | <BE>||<BT>
-<St> -> <id>=<E> | <id>=<BE> | <id>=<CC> | if <BE> {<StS>} | if <BE> {<StS>} else {<StS>} | while <BE> {<StS>} | <id>=<Na>(<PaS>) | <id>=<Na>() | <id>=new <Na>' | <id>=gpr(<DiS>) | <id>=gpr(<DiS>) {<NuS>} | gpr(<DiS>)=<id> | gpr(<DiS>)=<id> {<NuS>}
+<St> -> <id>=<E> | <id>=<BE> | <id>=<CC> | if <BE> {<StS>} | if <BE> {<StS>} else {<StS>} | while <BE> {<StS>} | <id>=<Na>(<PaS>) | <id>=<Na>() | <id>=new <Na>' | <id>=gpr(<DiS>) | <id>=gpr(<DiS>) {<NuS>} | gpr(<DiS>)=<id> | gpr(<DiS>)=<id> {<NuS>} | asm( <ASM> ) | <Na>() | <Na>(<PaS>) 
 <rSt> -> return <E> | return <BE> | return <CC>
 <Pa> -> <E> | <BE> | <CC>
 <PaS> -> <Pa> | <PaS>,<Pa>

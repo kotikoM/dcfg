@@ -98,6 +98,26 @@ public class CodeGenerator {
         }
     }
 
+    private void generateCodeVoidFunctionCall(FunctionCall call) throws Exception {
+        DTE StS = call.getFunction().getBody();
+        checkTokenType(StS, "<StS>");
+
+        int reg = Configuration.getInstance().getFirstFreeRegister();
+        addInstruction(Instruction.addi(reg, 0, -call.getFunction().getSize() - 4));
+        addInstruction(Instruction.sw(RA, reg, 0));
+        Configuration.getInstance().freeRegister(reg);
+
+        generateStS(StS);
+        int frameSize = call.getFunction().getSize() + 4;
+
+        addInstruction(Instruction.lw(1, SPT, -frameSize) + " # start of return from " + call.getFunction().getName());
+        addInstruction(Instruction.addi(SPT, SPT, -frameSize));
+        addInstruction(Instruction.jr(1) + " # end of return from " + call.getFunction().getName());
+
+        Configuration.getInstance().popStack();
+
+    }
+
     private void generateStS(DTE sts) throws Exception {
         checkTokenType(sts, "<StS>");
 
@@ -119,12 +139,16 @@ public class CodeGenerator {
             
             DTE registerIdx = st.getNthSon(3); 
             DTE id = st.getNthSon(6);
+
+            log("Write gpr: " + registerIdx.getBorderWord() + " from id: " + id.getBorderWord());
             generateWriteGPR(registerIdx, id);
         }
         // <id> = gpr(<DiS>) | gpr(<DiS>) = <id> {<NuS>}
         else if (st.getNthSon(3).isType("gpr")){
             DTE id = st.getFirstSon();
             DTE registerIdx = st.getNthSon(5);
+
+            log("Read gpr: " + registerIdx.getBorderWord() + " into id: " + id.getBorderWord());
             generateReadGPR(id, registerIdx); 
         }
 
@@ -146,12 +170,40 @@ public class CodeGenerator {
         else if (st.getFirstSon().isType("if")) {
             generateIfStatement(st.getFirstSon());
         }
+
+        // asm( <ASM> ) 
+        else if (st.getFirstSon().isType("asm")){
+
+            DTE asmContent = st.getNthSon(3);
+            generateInlineASM(asmContent);
+        }
+
+        // <Na>(<PaS>?)
+        else if (st.getNthSon(2).isType("(")) {
+
+            DTE fun = st.getFirstSon();
+
+            log("Function call: " + fun.getBorderWord());
+            generateVoidFun(fun); 
+        }
         
 
         // Invalid statement | Unhandled case
         else {
             throw new IllegalArgumentException("Grammar error on \"" + st.getBorderWord() + "\"");
         }
+    }
+
+    public void generateInlineASM(DTE asmContent){
+
+        // asm( <ASM> )
+        checkTokenType(asmContent, "<ASM>");
+        String content = asmContent.getBorderWord();
+
+        addInstruction(content);
+
+        return; 
+
     }
 
     public void generateWriteGPR(DTE registerIdx, DTE id) throws Exception {
@@ -180,9 +232,9 @@ public class CodeGenerator {
         addInstruction(Instruction.addi(idx, varRegId.register, 0));
         for (int reg : restrictedRegisterList) {
             Configuration.getInstance().freeRegister(reg);
-        }    
-
-
+        }
+        
+        return ;
 
     }
 
@@ -207,9 +259,38 @@ public class CodeGenerator {
         addInstruction(Instruction.sw(idx, varRegId.register, 0));
         for (int reg : restrictedRegisterList) {
             Configuration.getInstance().freeRegister(reg);
-        }    
+        }
+        
+        return; 
 
     }
+
+    public void generateVoidFun(DTE fun) throws Exception {
+        // <Na>(<PaS>?)
+        checkTokenType(fun, "<Na>");
+
+        String functionName = fun.getBorderWord();
+
+        Fun function = FunctionTable.getInstance().getFunction(functionName);
+        increaseStackPointer(function.getSize());
+
+        if (fun.getNthBrother(2).isType("<PaS>")) {
+            log("found parameters: " + fun.getNthBrother(2).getBorderWord());
+            setParameters(function, fun.getNthBrother(2));
+        }
+
+        initializeLocalVariables(function);
+        addInstruction(Instruction.jal("_" + functionName));
+
+        if (!functionInstructions.containsKey(functionName)) {
+            functionInstructions.put(functionName, new LinkedList<>());
+            FunctionCall call = Configuration.getInstance().callFunction(functionName, null);
+            generateCodeVoidFunctionCall(call);
+        }
+
+        return ;
+    }
+
     public void generateAssignment(DTE id, DTE value) throws Exception {
         // <id> = value
         // E -> T -> F -> C -> DiS -> Di -> 1

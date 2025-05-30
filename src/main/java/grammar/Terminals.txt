@@ -13,6 +13,8 @@ new
 if
 else
 gpr
+asm
+void
 0
 1
 2

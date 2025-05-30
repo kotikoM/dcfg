@@ -13,7 +13,7 @@ public class MemoryHelper {
                 Instruction.addi(HPT, HPT, size) + " # start of increasing hpt",
                 Instruction.subi(1, HPT, HMAX),
                 Instruction.bltz(1, 4),
-                "macro: gpr(1) = x",
+                "macro: gpr(1) = enc(22, uint) # hpt overflow",
                 Instruction.sysc(),
                 Instruction.addi(1, HPT, -size),
                 Instruction.addi(2, 0, size / 4),
@@ -27,7 +27,7 @@ public class MemoryHelper {
                 Instruction.addi(reg, SPT, size) + " # start of increasing spt",
                 Instruction.subi(reg, reg, SMAX),
                 Instruction.blez(reg, 4),
-                "macro: gpr(1) = x",
+                "macro: gpr(1) = enc(44, uint) # stack overflow",
                 Instruction.sysc(),
                 Instruction.addi(SPT, SPT, size + 4) + " # end of increasing spt"
         ).forEach(CodeGenerator.getInstance()::addInstruction);

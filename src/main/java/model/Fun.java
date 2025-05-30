@@ -17,7 +17,7 @@ public class Fun {
     @Override
     public String toString() {
         return "Function(name=" + name +
-                ", returnType= " + returnType.name +
+                ", returnType= " + (returnType == null ? "void" : returnType.name) +
                 ", memoryStruct= " + memoryStruct +
                 ", numParameters= " + numParameters +
                 ", body = " + body.toString();
@@ -140,7 +140,12 @@ public class Fun {
         }
 
         public Builder setReturnType(String returnType) throws TypeNotDefinedException {
+            if (returnType.equals("void")){
+                this.returnType = null; 
+            }
+            else {
             this.returnType = TypeTable.getInstance().getType(returnType);
+            }
             return this;
         }
 

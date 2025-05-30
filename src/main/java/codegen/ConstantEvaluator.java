@@ -21,7 +21,7 @@ public class ConstantEvaluator {
         int register = Configuration.getInstance().getFirstFreeRegister();
         String value = constant.getBorderWord();
 
-        int intValue;
+        long intValue;
         VarType type;
         String instr;
 
@@ -30,9 +30,11 @@ public class ConstantEvaluator {
             type = VarType.INT_TYPE;
             instr = "macro: gpr(" + register + ") = enc(" + intValue + ", int)";
         } else {
-            intValue = Integer.parseInt(value.substring(0, value.length() - 1));
+            intValue = Long.parseLong(value.substring(0, value.length() - 1));
+            if (intValue > (1L << 32) - 1L){
+                throw new IllegalArgumentException("Integer constant out of range: " + value); 
+            }
             type = VarType.UINT_TYPE;
-            instr = Instruction.addiu(register, 0, intValue);
             instr = "macro: gpr(" + register + ") = enc(" + intValue + ", uint)";
         }
 
@@ -44,8 +46,12 @@ public class ConstantEvaluator {
         checkTokenType(bc, "<BC>");
 
         int register = Configuration.getInstance().getFirstFreeRegister();
-        int value = bc.getFirstSon().labelContent().equals("true") ? 1 : 0;
+        String value = bc.getFirstSon().labelContent(); 
 
+        if (!value.equals("true") & !value.equals("false")){
+            throw new IllegalArgumentException("Expected boolean constant, got " + value);
+        }
+        
         String instr = "macro: gpr(" + register + ") = enc(" + value + ", bool)";
         cg().addInstruction(instr);
 
