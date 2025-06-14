@@ -8,8 +8,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.io.Serializable;
 
-public class State {
+public class State implements Serializable {
 
     // A set of ‘Item’ objects that represents all the items / dotted rules for this state.
     private final HashSet<Item> items = new HashSet<>();

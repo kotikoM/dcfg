@@ -2,11 +2,14 @@ package codegen;
 
 import config.Configuration;
 import config.FunctionCall;
+import exceptions.function.FunctionException;
+import exceptions.memory.MemoryStructException;
 import grammar.Grammar;
 import model.Fun;
 import model.VarReg;
 import model.Variable;
 import table.FunctionTable;
+import table.MemoryTable;
 import tree.DTE;
 
 import java.util.*;
@@ -18,6 +21,7 @@ import static codegen.ExpressionEvaluator.evaluateExpression;
 import static codegen.IdEvaluator.evaluateId;
 import static codegen.MemoryHelper.increaseHeapPointer;
 import static codegen.MemoryHelper.increaseStackPointer;
+import static codegen.MemoryHelper.increaseVoidStackPointer;
 import static util.Context.*;
 import static util.Logger.log;
 import static util.TypeUtils.checkSameTypes;
@@ -84,9 +88,7 @@ public class CodeGenerator {
         // all calls, except `main`, will store return address on address SPT - (size($f)+4), from register 31
         // function is not main, if result destination is defined
         if (!call.getFunction().getName().equals("main")) {
-            int reg = Configuration.getInstance().getFirstFreeRegister();
-            addInstruction(Instruction.sw(31, SPT, -(call.getFunction().getSize() + 8)));
-            Configuration.getInstance().freeRegister(reg);
+            addInstruction(Instruction.sw(RA, SPT, -(call.getFunction().getSize() + 8)));
         }
 
         if (body.getFirstSon().isType("<rSt>")) {
@@ -101,17 +103,14 @@ public class CodeGenerator {
         DTE StS = call.getFunction().getBody();
         checkTokenType(StS, "<StS>");
 
-        int reg = Configuration.getInstance().getFirstFreeRegister();
-        addInstruction(Instruction.addi(reg, 0, -call.getFunction().getSize() - 4));
-        addInstruction(Instruction.sw(RA, reg, 0));
-        Configuration.getInstance().freeRegister(reg);
+        addInstruction(Instruction.sw(RA, SPT, -(call.getFunction().getSize() + 4)));
 
         generateStS(StS);
-        int frameSize = call.getFunction().getSize() + 4;
+        int frameSize = call.getFunction().getSize();
 
-        addInstruction(Instruction.lw(1, SPT, -frameSize) + " # start of return from " + call.getFunction().getName());
-        addInstruction(Instruction.addi(SPT, SPT, -frameSize));
-        addInstruction(Instruction.jr(1) + " # end of return from " + call.getFunction().getName());
+        addInstruction(Instruction.lw(1, SPT, -(frameSize + 4)));
+        addInstruction(Instruction.addi(SPT, SPT, -(frameSize + 4)));
+        addInstruction(Instruction.jr(1));
 
         Configuration.getInstance().popStack();
 
@@ -182,8 +181,29 @@ public class CodeGenerator {
 
             DTE fun = st.getFirstSon();
 
-            log("Function call: " + fun.getBorderWord());
-            generateVoidFun(fun); 
+            log("Void function call: " + fun.getBorderWord());
+            checkTokenType(fun, "<Na>");
+
+            String functionName = fun.getBorderWord();
+
+            Fun function = FunctionTable.getInstance().getFunction(functionName);
+            increaseVoidStackPointer(function.getSize());
+
+            if (fun.getNthBrother(2).isType("<PaS>")) {
+                log("found parameters: " + fun.getNthBrother(2).getBorderWord());
+                setParameters(function, fun.getNthBrother(2));
+            }
+            if (function.getNumLocalVariables() != 0){
+                initializeLocalVariables(function);
+            }
+            addInstruction(Instruction.jal("_" + functionName));
+
+            if (!functionInstructions.containsKey(functionName)) {
+                functionInstructions.put(functionName, new LinkedList<>());
+                FunctionCall call = Configuration.getInstance().callFunction(functionName);
+                generateCodeVoidFunctionCall(call);
+            }
+
         }
         
 
@@ -198,7 +218,7 @@ public class CodeGenerator {
         // asm( <ASM> )
         checkTokenType(asmContent, "<ASM>");
         String content = asmContent.getBorderWord();
-
+        log("Inline ASM: " + content);
         addInstruction(content);
 
         return; 
@@ -262,32 +282,6 @@ public class CodeGenerator {
         
         return; 
 
-    }
-
-    public void generateVoidFun(DTE fun) throws Exception {
-        // <Na>(<PaS>?)
-        checkTokenType(fun, "<Na>");
-
-        String functionName = fun.getBorderWord();
-
-        Fun function = FunctionTable.getInstance().getFunction(functionName);
-        increaseStackPointer(function.getSize());
-
-        if (fun.getNthBrother(2).isType("<PaS>")) {
-            log("found parameters: " + fun.getNthBrother(2).getBorderWord());
-            setParameters(function, fun.getNthBrother(2));
-        }
-
-        initializeLocalVariables(function);
-        addInstruction(Instruction.jal("_" + functionName));
-
-        if (!functionInstructions.containsKey(functionName)) {
-            functionInstructions.put(functionName, new LinkedList<>());
-            FunctionCall call = Configuration.getInstance().callFunction(functionName);
-            generateCodeVoidFunctionCall(call);
-        }
-
-        return ;
     }
 
     public void generateAssignment(DTE id, DTE value) throws Exception {
@@ -358,16 +352,40 @@ public class CodeGenerator {
         Configuration.getInstance().freeRegister(varRegId.register);
     }
 
-    public void printInstructions() {
+    public void printInstructions(boolean program) throws FunctionException {
         System.out.println("\n\n------ GENERATED INSTRUCTIONS ------");
-        List<String> mainInstructions = functionInstructions.get("main");
-        System.out.println("_main:");
+        Variable gm = null;
+        int gmSize = 0; 
+        String headFunction = "main";
+        Fun function =  FunctionTable.getInstance().getFunction(headFunction);
+
+        try {
+            gm = MemoryTable.getInstance().gm();
+            gmSize = gm.getType().size;
+        }
+        catch(MemoryStructException e){
+            gmSize = 0;
+        }
+        
+        if (program){
+            System.out.println("macro: gpr(" + HPT + ") = enc(" + HBASE + ", uint)");
+            System.out.println("macro: gpr(" + BPT + ") = enc(" + SBASE + ", uint)");
+            System.out.println("addiu " + SPT + " " + BPT + " " + (function.getSize() + 8 + gmSize));
+            System.out.println("subu 1 " + SPT + " " + BPT);
+            System.out.println("srl 1 1 2");
+            System.out.println("macro: zero(" + BPT + ", 1)");
+            System.out.println("j _" + headFunction);
+            System.out.println();
+        }
+
+        List<String> mainInstructions = functionInstructions.get(headFunction);
+        System.out.println("_" + headFunction + ":");
         mainInstructions.forEach(System.out::println);
         System.out.println();
 
         functionInstructions.forEach((key, value) -> {
-            if (!key.equals("main")) {
-                System.out.println("_" + key);
+            if (!key.equals(headFunction)) {
+                System.out.println("_" + key + ":");
                 value.forEach(System.out::println);
                 System.out.println();
             }
@@ -375,21 +393,87 @@ public class CodeGenerator {
         System.out.println("--------------------------");
     }
 
-    public String getInstructions() {
+    public String getInstructions(boolean program) throws FunctionException {
+        Variable gm = null;
+        int gmSize = 0; 
+        String headFunction = "main";
+        Fun function = FunctionTable.getInstance().getFunction(headFunction);
+
+        try {
+            gm = MemoryTable.getInstance().gm();
+            gmSize = gm.getType().size;
+        }
+        catch(MemoryStructException e){
+            gmSize = 0;
+        }
+
         StringBuilder res = new StringBuilder();
+        if (program){
+            res.append("macro: gpr(" + HPT + ") = enc(" + HBASE + ", uint)\n");
+            res.append("macro: gpr(" + BPT + ") = enc(" + SBASE + ", uint)\n");
+            res.append("addiu " + SPT + " " + BPT + " " + (function.getSize() + 8 + gmSize) + "\n");
+            res.append("subu 1 " + SPT + " " + BPT + "\n");
+            res.append("srl 1 1 2\n");
+            res.append("macro: zero(" + BPT + ", 1)\n");
+            res.append("j _" + headFunction + "\n\n");
+        }
+
         res.append("_main:\n");
-        List<String> mainInstructions = functionInstructions.get("main");
+        List<String> mainInstructions = functionInstructions.get(headFunction);
         res.append(String.join("\n", mainInstructions))
                 .append("\n");
 
         functionInstructions.forEach((key, value) -> {
-            if (!key.equals("main")) {
+            if (!key.equals(headFunction)) {
                 res.append("\n_").append(key).append(":\n")
                         .append(String.join("\n", value))
                         .append("\n");
             }
         });
         return res.toString();
+    }
+
+    public List<String> getInstructionsList(boolean program) throws FunctionException {
+        List<String> res = new LinkedList<>();
+        Variable gm = null;
+        int gmSize = 0; 
+        String headFunction = "main";
+        Fun function = FunctionTable.getInstance().getFunction(headFunction);
+
+        try {
+            gm = MemoryTable.getInstance().gm();
+            gmSize = gm.getType().size;
+        }
+        catch(MemoryStructException e){
+            gmSize = 0;
+        }
+
+        if (program){
+            res.add("macro: gpr(" + HPT + ") = enc(" + HBASE + ", uint)\n");
+            res.add("macro: gpr(" + BPT + ") = enc(" + SBASE + ", uint)\n");
+            res.add("addiu " + SPT + " " + BPT + " " + (function.getSize() + 8 + gmSize) + "\n");
+            res.add("subu 1 " + SPT + " " + BPT + "\n");
+            res.add("srl 1 1 2\n");
+            res.add("macro: zero(" + BPT + ", 1)\n");
+            res.add("j _" + headFunction + "\n\n");
+        }
+
+        res.add("_main:\n");
+        List<String> mainInstructions = functionInstructions.get(headFunction);
+        res.add(String.join("\n", mainInstructions));
+        res.add("\n");
+
+        functionInstructions.forEach((key, value) -> {
+            if (!key.equals(headFunction)) {
+                res.add("\n_");
+                res.add(key);
+                res.add(":\n");
+                res.add(String.join("\n", value));
+                res.add("\n");
+            }
+        });
+
+        return res; 
     }
 
     public void generateLoop(DTE dte) throws Exception {
@@ -463,7 +547,7 @@ public class CodeGenerator {
         generateStS(elsePart);
         int elsePartSize = instructionsSize() - before;
 
-        addInstruction(before, Instruction.beq(0, elsePartSize + 1));
+        addInstruction(before, Instruction.blez(0, elsePartSize + 1));
     }
 
     private void generateRSt(DTE rSt, FunctionCall call) throws Exception {
@@ -486,15 +570,17 @@ public class CodeGenerator {
         // get the result address, decrease stack pointer, and return
         if (!call.getFunction().getName().equals("main")) {
             int frameSize = call.getFunction().getSize();
-            addInstruction(Instruction.sw(expr.register, SPT, -(frameSize + 4)) + " # start of return from " + call.getFunction().getName());
-
+            int reg = Configuration.getInstance().getFirstFreeRegister();
+            addInstruction(Instruction.lw(reg, SPT, -(frameSize + 4)));
+            addInstruction(Instruction.sw(expr.register, reg, 0));
+            Configuration.getInstance().freeRegister(reg);
             addInstruction(Instruction.lw(1, SPT, -(frameSize + 8)));
             addInstruction(Instruction.addi(SPT, SPT, -(frameSize + 8)));
-            addInstruction(Instruction.jr(1) + " # end of return from " + call.getFunction().getName());
+            addInstruction(Instruction.jr(1));
 
             retainedRegister = -1;
         } else { // return from `main`
-            addInstruction("HALT");
+            addInstruction(Instruction.sysc());
         }
 
         Configuration.getInstance().popStack();

@@ -2,9 +2,10 @@ package grammar;
 
 import java.util.ArrayList;
 
+import java.io.Serializable;
 // Encapsulates the concept of a production rule of a Context-Free Grammar.
 // A production dictates how a nonterminal symbol can be replaced by a sequence of terminal and/or nonterminal symbols.
-public class Production {
+public class Production implements Serializable{
 
     // The nonterminal symbol on the left side of the production rule.
     private final Symbol left;

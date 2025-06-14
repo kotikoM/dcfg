@@ -7,11 +7,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Scanner;
 import java.util.function.Predicate;
+import java.io.Serializable;
 
 // Represents a Context-Free Grammar.
 // The main goal of this class is to read grammar information from the text files ('Grammar.txt' and 'Terminal.txt'),
 // manipulate (tokenize, pre-process), and store this information in suitable data structures for further use.
-public class Grammar {
+public class Grammar implements Serializable {
 
     // The start symbol of the grammar.
     // By convention, it's the left nonterminal of the first production rule.
@@ -188,8 +189,8 @@ public class Grammar {
         syntaxSymbols.add(new Symbol(",", Symbol.SymbolType.Terminal));
         syntaxSymbols.add(new Symbol(";", Symbol.SymbolType.Terminal));
         syntaxSymbols.add(new Symbol("+", Symbol.SymbolType.Terminal));
-        syntaxSymbols.add(new Symbol("-", Symbol.SymbolType.Terminal));
-//        syntaxSymbols.add(new Symbol("*", Symbol.SymbolType.Terminal));
+        //syntaxSymbols.add(new Symbol("-", Symbol.SymbolType.Terminal));
+        //syntaxSymbols.add(new Symbol("*", Symbol.SymbolType.Terminal));
         syntaxSymbols.add(new Symbol("/", Symbol.SymbolType.Terminal));
         syntaxSymbols.add(new Symbol("&", Symbol.SymbolType.Terminal));
         syntaxSymbols.add(new Symbol("|", Symbol.SymbolType.Terminal));

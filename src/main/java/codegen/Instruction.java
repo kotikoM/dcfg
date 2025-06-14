@@ -16,7 +16,7 @@ public class Instruction {
     }
 
     public static String subi(int rt, int rs, int imm) {
-        return getIType("subi", rt, rs, imm);
+        return addi(rt, rs, -imm); // getIType("subi", rt, rs, imm);
     }
 
     public static String addiu(int rt, int rs, int imm) {
@@ -55,16 +55,16 @@ public class Instruction {
         return getBranch("bgez", rs, imm);
     }
 
-    public static String beq(int rs, int imm) {
-        return getBranch("beq", rs, imm);
+    public static String beq(int rs, int rt, int imm) {
+        return getIType("beq", rs, rt, imm);
+    }
+
+    public static String bne(int rs, int rt, int imm) {
+        return getIType("bne", rs, rt, imm);
     }
 
     public static String beqz(int rs, int imm) {
-        return getBranch("beqz", rs, imm);
-    }
-
-    public static String bne(int rs, int imm) {
-        return getBranch("bne", rs, imm);
+        return beq(rs, 0, imm);
     }
 
     public static String blez(int rs, int imm) {
@@ -159,11 +159,11 @@ public class Instruction {
     }
 
     private static String getIType(String name, int rt, int rs, int imm) {
-        return name + " $" + rt + " $" + rs + " " + imm; // "lw $1 $27 0"
+        return name + " " + rt + " " + rs + " " + imm; // "lw $1 $27 0"
     }
 
     private static String getRtype(String name, int rd, int rs, int rt) {
-        return name + " $" + rd + " $" + rs + " $" + rt;
+        return name + " " + rd + " " + rs + " " + rt;
     }
 
     private static String getBranch(String name, int rs, int imm) {

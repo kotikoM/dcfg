@@ -1,7 +1,8 @@
 package grammar;
 
+import java.io.Serializable;
 // Encapsulates the concept of symbol, which can either be a terminal or a nonterminal.
-public class Symbol {
+public class Symbol implements Serializable {
 
     public enum SymbolType {
         Terminal, Nonterminal

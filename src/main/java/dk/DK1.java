@@ -9,7 +9,9 @@ import java.util.*;
 
 import static util.Logger.log;
 
-public class DK1 {
+import java.io.Serializable;
+
+public class DK1 implements Serializable {
 
     // A ‘State’ object representing the start state of the automaton.
     private final State start;

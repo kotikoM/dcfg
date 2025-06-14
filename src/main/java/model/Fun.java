@@ -205,8 +205,8 @@ public class Fun {
         // getting to function closure. If there are no variable declarations, current tree element is expected to be <body>
         nextElement = nextElement.getNthBrother(2);
         if (nextElement.isType("<VaDS>")) {
-            log("Vads: " + pads.getBorderWord());
             vads = nextElement;
+            log("Vads: " + vads.getBorderWord());
             nextElement = nextElement.getNthBrother(2);
         }
 

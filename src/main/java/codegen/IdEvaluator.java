@@ -86,7 +86,7 @@ public class IdEvaluator {
             cg().addInstruction("macro: gpr(23) = enc(" + arrSize + ", uint)");
 
             // mul(j', j', 23)
-            cg().addInstruction("macro: mul($" + index.register + ", $" + index.register + ", $23)");
+            cg().addInstruction("macro: mul(" + index.register + ", " + index.register + ", 23)");
 
             // add j j j'
             String instr = Instruction.add(array.register, array.register, index.register);
@@ -124,9 +124,10 @@ public class IdEvaluator {
         }
 
         if (id.getNthSon(2).isType("&")) {
-            VarReg boundVar = bindVariableName(id.getFirstSon().getFirstSon());
-            VarType pType = TypeTable.getInstance().getTypesPointer(boundVar.type);
-            return new VarReg(boundVar.register, pType);
+
+            VarReg reg = evaluateId(id.getFirstSon(), true);
+            VarType pType = TypeTable.getInstance().getTypesPointer(reg.type);
+            return new VarReg(reg.register, pType);
         }
 
         throw new IllegalArgumentException("Grammar error on \"" + id.getBorderWord() + "\"");

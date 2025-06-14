@@ -3,6 +3,7 @@ package codegen;
 import config.Configuration;
 import model.VarReg;
 import model.VarType;
+import model.VarType.TypeClass;
 import tree.DTE;
 
 import static codegen.ConstantEvaluator.evaluateBooleanConstant;
@@ -11,6 +12,10 @@ import static codegen.IdEvaluator.evaluateId;
 import static util.Logger.log;
 import static util.TypeUtils.checkSameTypes;
 import static util.TypeUtils.checkTokenType;
+
+import java.lang.reflect.Type;
+import java.util.List;
+import java.util.LinkedList;
 
 public class ExpressionEvaluator {
     private static CodeGenerator cg() {
@@ -146,7 +151,7 @@ public class ExpressionEvaluator {
 
 
             cg().addInstruction(Instruction.subi(factor.register, factor.register, 1));
-            cg().addInstruction("set lt " + factor.register + " 0");
+            cg().addInstruction(Instruction.slti(factor.register, factor.register, 0)); //  "set lt " + factor.register + " 0");
 
             return factor;
         }
@@ -179,8 +184,8 @@ public class ExpressionEvaluator {
         String instr = switch (binOp.labelContent()) {
             case "+" -> Instruction.add(leftRegister, leftRegister, rightRegister);
             case "-" -> Instruction.sub(leftRegister, leftRegister, rightRegister);
-            case "*" -> "macro: mul($" + leftRegister + ", $" + leftRegister + ", $" + rightRegister + ")";
-            case "/" -> "macro: divt($" + leftRegister + ", $" + leftRegister + ", $" + rightRegister + ")";
+            case "*" -> "macro: mul(" + leftRegister + ", " + leftRegister + ", " + rightRegister + ")";
+            case "/" -> "macro: divt(" + leftRegister + ", " + leftRegister + ", " + rightRegister + ")";
             default -> throw new IllegalArgumentException("Expected binary operator, got " + binOp.labelContent());
         };
 
@@ -193,8 +198,8 @@ public class ExpressionEvaluator {
         String instr = switch (binOp.labelContent()) {
             case "+" -> Instruction.addu(leftRegister, leftRegister, rightRegister);
             case "-" -> Instruction.subu(leftRegister, leftRegister, rightRegister);
-            case "*" -> "macro: mul($" + leftRegister + ", $" + leftRegister + ", $" + rightRegister + ")";
-            case "/" -> "macro: divu($" + leftRegister + ", $" + leftRegister + ", $" + rightRegister + ")";
+            case "*" -> "macro: mul(" + leftRegister + ", " + leftRegister + ", " + rightRegister + ")";
+            case "/" -> "macro: divu(" + leftRegister + ", " + leftRegister + ", " + rightRegister + ")";
             default -> throw new IllegalArgumentException("Expected binary operator, got " + binOp.labelContent());
         };
 
@@ -225,29 +230,101 @@ public class ExpressionEvaluator {
 
         VarReg leftVar = evaluateExpression(left);
         VarReg rightVar = evaluateExpression(right);
-
+        int leftReg = leftVar.register;
+        int rightReg = rightVar.register;
+        TypeClass expressionType = leftVar.type.typeClass;
+        String binOp = op.labelContent();     
+        
         checkSameTypes(leftVar.type, rightVar.type);
 
-        String instr;
-        if (op.isType(">")) {
-            instr = "sgt " + leftVar.register + " " + leftVar.register + " " + rightVar.register;
-        } else if (op.isType("<")) {
-            instr = Instruction.slt(leftVar.register, leftVar.register, rightVar.register);
-        } else if (op.isType(">=")) {
-            instr = "greater than or equal";
-        } else if (op.isType("<=")) {
-            instr = "less than or equal";
-        } else if (op.isType("==")) {
-            instr = "eq " + leftVar.register + " " + leftVar.register + " " + rightVar.register;
-        } else if (op.isType("!=")) {
-            instr = "neq " + leftVar.register + " " + leftVar.register + " " + rightVar.register;
-        } else {
+        boolean intType = expressionType.equals(TypeClass.INT);
+        boolean uintType = expressionType.equals(TypeClass.UINT);
+        boolean numbers = intType || uintType; 
+        boolean simple = numbers || expressionType.equals(TypeClass.POINTER) || expressionType.equals(TypeClass.BOOL) || expressionType.equals(TypeClass.CHAR);
+
+
+        if ((binOp.equals("==") || binOp.equals("!=")) && simple){
+            return evaluateEqualNot(leftReg, rightReg, binOp);
+        }
+        else if (intType){
+            return evaluateSignedAtom(leftReg, rightReg, binOp);
+        }
+        else if (uintType){
+            return evaluateUnsignedAtom(leftReg, rightReg, binOp);
+        }
+        else {
             throw new IllegalArgumentException("Grammar error on \"" + atom.getBorderWord() + "\"");
         }
 
-        cg().addInstruction(instr);
-        Configuration.getInstance().freeRegister(rightVar.register);
-        return new VarReg(leftVar.register, VarType.BOOL_TYPE);
     }
+
+    public static VarReg evaluateSignedAtom(int leftReg, int rightReg, String binOp){
+
+        List<String> inst = new LinkedList<>();
+
+        switch(binOp){
+            case "<" -> inst.add(Instruction.slt(leftReg, leftReg, rightReg));
+            case ">" -> inst.add(Instruction.slt(leftReg, rightReg, rightReg));
+            case "<=" -> {
+                        inst.add(Instruction.slt(leftReg, rightReg, leftReg));
+                        inst.add(Instruction.xori(leftReg, leftReg, 1));
+                }
+            case ">=" -> {
+                        inst.add(Instruction.slt(leftReg, leftReg, rightReg));
+                        inst.add(Instruction.xori(leftReg, leftReg, 1));
+                }
+            default -> throw new IllegalArgumentException("Expected Atom, got " + binOp);   
+        }
+
+        inst.forEach(instr -> cg().addInstruction(instr));
+        Configuration.getInstance().freeRegister(rightReg);
+        return new VarReg(leftReg, VarType.BOOL_TYPE);
+    }
+
+    public static VarReg evaluateUnsignedAtom(int leftReg, int rightReg, String binOp){
+
+        List<String> inst = new LinkedList<>();
+
+        switch(binOp){
+            case "<" -> inst.add(Instruction.sltu(leftReg, leftReg, rightReg));
+            case ">" -> inst.add(Instruction.sltu(leftReg, rightReg, rightReg));
+            case "<=" -> {
+                        inst.add(Instruction.sltu(leftReg, rightReg, leftReg));
+                        inst.add(Instruction.xori(leftReg, leftReg, 1));
+                }
+            case ">=" -> {
+                        inst.add(Instruction.sltu(leftReg, leftReg, rightReg));
+                        inst.add(Instruction.xori(leftReg, leftReg, 1));
+                }
+            default -> throw new IllegalArgumentException("Expected Atom, got " + binOp);   
+        }
+
+        inst.forEach(instr -> cg().addInstruction(instr));
+        Configuration.getInstance().freeRegister(rightReg);
+        return new VarReg(leftReg, VarType.BOOL_TYPE);
+    }
+
+    public static VarReg evaluateEqualNot(int leftReg, int rightReg, String binOp){
+
+        List<String> inst = new LinkedList<>();
+
+        switch(binOp) {
+            case "==" -> inst.add(Instruction.bne(leftReg, rightReg, 3));
+            case "!=" -> inst.add(Instruction.beq(leftReg, rightReg, 3));
+            default -> throw new IllegalArgumentException("Expected Atom, got " + binOp);
+        }
+        
+        inst.add(Instruction.addi(leftReg, 0, 1));
+        inst.add(Instruction.blez(0, 2));
+        inst.add(Instruction.add(leftReg, 0, 0));
+        
+        inst.forEach(instr -> cg().addInstruction(instr));
+        Configuration.getInstance().freeRegister(rightReg);
+        return new VarReg(leftReg, VarType.BOOL_TYPE);
+
+    }
+    
+
+    
 
 }

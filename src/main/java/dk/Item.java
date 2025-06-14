@@ -5,8 +5,9 @@ import grammar.Symbol;
 
 import java.util.HashSet;
 
+import java.io.Serializable;
 // Encapsulates the concept of an item / dotted rule explained in the Sipser's book.
-public class Item {
+public class Item implements Serializable {
 
     // A ‘Production’ object that represents the production rule for this dotted rule.
     private final Production production;
