@@ -52,7 +52,7 @@ public class FunctionTable implements Table {
     }
 
     @Override
-    public void fillTable(DTE fuds) throws Exception {
+    public void fillTable(DTE fuds) {
         checkTokenType(fuds, "<FuDS>");
 
         fuds.getFlattenedSequence().stream().map(f -> {

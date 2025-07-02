@@ -11,6 +11,7 @@ import model.Variable;
 import table.FunctionTable;
 import table.MemoryTable;
 import tree.DTE;
+import util.Context;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -36,17 +37,39 @@ public class CodeGenerator {
 
     private final Map<String, List<String>> functionInstructions = new HashMap<>();
     private final Set<String> generatedFunctions = new HashSet<>();
+    private static final Map<String, Integer> instructionRealSize = Map.of(
+        "restore-user", 45,
+        "save-user", 46,
+        "gpr", 2,
+        "ssave", 1,
+        "srestore", 1,
+        "divt", 58,
+        "divu", 32,
+        "mul", 10,
+        "zero", 4
+    );
+    private final Map<String, Integer> instructionsRealSize = new HashMap();
 
     public void addInstruction(String instr) {
-        functionInstructions
-                .get(Configuration.getInstance().currentFunction().getName())
-                .add(instr);
+        String currFun = Configuration.getInstance().currentFunction().getName();
+        functionInstructions.get(currFun).add(instr);
+
+        int currSize = instructionsRealSize.getOrDefault(currFun, 0);
+        int newSize = currSize + instructionRealSize(instr);
+
+        instructionsRealSize.put(currFun, newSize);
+
     }
 
     public void addInstruction(int index, String instr) {
-        functionInstructions
-                .get(Configuration.getInstance().currentFunction().getName())
-                .add(index, instr);
+        String currFun = Configuration.getInstance().currentFunction().getName();
+        functionInstructions.get(currFun).add(index, instr);
+
+        int currSize = instructionsRealSize.getOrDefault(currFun, 0);
+        int newSize = currSize + instructionRealSize(instr);
+
+        instructionsRealSize.put(currFun, newSize);
+        
     }
 
     public int instructionsSize() {
@@ -55,6 +78,30 @@ public class CodeGenerator {
                 .size();
     }
 
+    public int instructionsRealSize(){
+        return instructionsRealSize.getOrDefault(Configuration.getInstance().currentFunction().getName(), 0);
+    }
+
+    public static int instructionRealSize(String instr){
+        String[] split = instr.split("[\\s(),]+");
+        if (split[0].equals("macro:")){
+            return instructionRealSize.get(split[1]);
+        }
+        return 1;
+    }
+
+    public int totalProgramRealSize(boolean program){
+        int size = 0;
+
+        if (program){
+            size += Context.programInit;
+        }
+
+        for (int v : instructionsRealSize.values()) {
+            size += v;  
+        }
+        return size; 
+    }
 
     public Grammar g;
 
@@ -79,6 +126,7 @@ public class CodeGenerator {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
     }
 
     private void generateCodeForFunctionCall(FunctionCall call) throws Exception {
@@ -99,7 +147,7 @@ public class CodeGenerator {
         }
     }
 
-    private void generateCodeVoidFunctionCall(FunctionCall call) throws Exception {
+    private void generateCodeVoidFunction(FunctionCall call) throws Exception {
         DTE StS = call.getFunction().getBody();
         checkTokenType(StS, "<StS>");
 
@@ -141,7 +189,7 @@ public class CodeGenerator {
             log("Write gpr: " + registerIdx.getBorderWord() + " from id: " + id.getBorderWord());
             generateWriteGPR(registerIdx, id);
         }
-        // <id> = gpr(<DiS>) | gpr(<DiS>) = <id> {<NuS>}
+        // <id> = gpr(<DiS>) | <id> = gpr(<DiS>) {<NuS>}
         else if (st.getNthSon(3).isType("gpr")){
             DTE id = st.getFirstSon();
             DTE registerIdx = st.getNthSon(5);
@@ -150,7 +198,7 @@ public class CodeGenerator {
             generateReadGPR(id, registerIdx); 
         }
 
-        // <id> = <E> | <id> = <BE> | <id> = <CC> | <id> = <Na>(<PaS>?) | <id> = new <Na>* | <id> = gpr(<Dis>) | <id> = gpr(<Dis>) {<NuS}
+        // <id> = <E> | <id> = <BE> | <id> = <CC> | <id> = <Na>(<PaS>?) | <id> = new <Na>* 
         else if (st.getNthSon(2).isType("=")) {
             DTE id = st.getFirstSon();
             DTE exp = st.getNthSon(3);
@@ -181,27 +229,37 @@ public class CodeGenerator {
 
             DTE fun = st.getFirstSon();
 
-            log("Void function call: " + fun.getBorderWord());
+            log("void function call: " + fun.getBorderWord());
             checkTokenType(fun, "<Na>");
 
             String functionName = fun.getBorderWord();
 
             Fun function = FunctionTable.getInstance().getFunction(functionName);
-            increaseVoidStackPointer(function.getSize());
+            List<Integer> registers = new LinkedList<>();
 
             if (fun.getNthBrother(2).isType("<PaS>")) {
                 log("found parameters: " + fun.getNthBrother(2).getBorderWord());
-                setParameters(function, fun.getNthBrother(2));
+                registers = getParametersRegisterList(function, fun.getNthBrother(2));
             }
-            if (function.getNumLocalVariables() != 0){
+
+            increaseVoidStackPointer(function.getSize());
+
+
+            if (fun.getNthBrother(2).isType("<PaS>")) {
+                log("found parameters: " + fun.getNthBrother(2).getBorderWord());
+                setParametersRegisterList(registers, function, fun.getNthBrother(2));
+            }
+
+            if (function.getNumLocalVariables() > 0){
                 initializeLocalVariables(function);
             }
-            addInstruction(Instruction.jal("_" + functionName));
+            
+            addInstruction(Instruction.jal("_" + functionName));            
 
             if (!functionInstructions.containsKey(functionName)) {
                 functionInstructions.put(functionName, new LinkedList<>());
                 FunctionCall call = Configuration.getInstance().callFunction(functionName);
-                generateCodeVoidFunctionCall(call);
+                generateCodeVoidFunction(call);
             }
 
         }
@@ -213,13 +271,13 @@ public class CodeGenerator {
         }
     }
 
-    public void generateInlineASM(DTE asmContent){
+    public void generateInlineASM(DTE instrNode){
 
         // asm( <ASM> )
-        checkTokenType(asmContent, "<ASM>");
-        String content = asmContent.getBorderWord();
-        log("Inline ASM: " + content);
-        addInstruction(content);
+        checkTokenType(instrNode, "<ASM>");
+        String instruction = instrNode.getBorderWord();
+        log("Inline ASM: " + instruction);
+        addInstruction(instruction);
 
         return; 
 
@@ -239,7 +297,7 @@ public class CodeGenerator {
             throw new IllegalArgumentException("Register index - " + idx + " is reserved");
         }
 
-        if (id.getNthBrother(1) != null){
+        if (id.getSiblingCount() > 1){
             restrictedRegister = id.getNthBrother(2).getBorderWord();
         }
         
@@ -252,6 +310,8 @@ public class CodeGenerator {
         for (int reg : restrictedRegisterList) {
             Configuration.getInstance().freeRegister(reg);
         }
+
+        Configuration.getInstance().freeRegister(varRegId.register);
         
         return ;
 
@@ -266,7 +326,7 @@ public class CodeGenerator {
         if (idx > 31){
             throw new IllegalArgumentException("Register Index - " + idx + " is out of bound");
         }
-        if (id.getNthBrother(6) != null){
+        if (id.getSiblingCount() > 6){
             restrictedRegister = content + "," + id.getNthBrother(7).getBorderWord();
         }
     
@@ -280,6 +340,7 @@ public class CodeGenerator {
             Configuration.getInstance().freeRegister(reg);
         }
         
+        Configuration.getInstance().freeRegister(varRegId.register);
         return; 
 
     }
@@ -289,7 +350,9 @@ public class CodeGenerator {
         // E -> T -> F -> C -> DiS -> Di -> 1
         VarReg varRegId;
         VarReg varRegValue;
+        varRegId = evaluateId(id, true);
         
+        // case split for type of value
         if (value.isType("<Na>")){
             // id = Na() | id = Na(PaS) left
             // checkTokenType(value, "<Na>");
@@ -298,16 +361,21 @@ public class CodeGenerator {
             log("function call: " + functionName);
 
             Fun function = FunctionTable.getInstance().getFunction(functionName);
-            increaseStackPointer(function.getSize());
-
-            varRegId = evaluateId(id, true);
-            addInstruction(Instruction.sw(varRegId.register, SPT, -(function.getSize() + 4)));
-            Configuration.getInstance().freeRegister(varRegId.register);
-
+            List<Integer> registers = new LinkedList<>();
 
             if (value.getNthBrother(2).isType("<PaS>")) {
                 log("found parameters: " + value.getNthBrother(2).getBorderWord());
-                setParameters(function, value.getNthBrother(2));
+                registers = getParametersRegisterList(function, value.getNthBrother(2));
+            }
+
+            increaseStackPointer(function.getSize());
+
+            addInstruction(Instruction.sw(varRegId.register, SPT, -(function.getSize() + 4)));
+            Configuration.getInstance().freeRegister(varRegId.register);
+
+            if (value.getNthBrother(2).isType("<PaS>")) {
+                log("found parameters: " + value.getNthBrother(2).getBorderWord());
+                setParametersRegisterList(registers, function, value.getNthBrother(2));
             }
 
             if (function.getNumLocalVariables() > 0){
@@ -325,8 +393,7 @@ public class CodeGenerator {
 
             return;
         }
-        varRegId = evaluateId(id, true);
-        // case split for type of value
+
         if (value.isType("<E>")) {
             varRegValue = evaluateExpression(value);
         } else if (value.isType("<BE>")) {
@@ -373,7 +440,8 @@ public class CodeGenerator {
             System.out.println("addiu " + SPT + " " + BPT + " " + (function.getSize() + 8 + gmSize));
             System.out.println("subu 1 " + SPT + " " + BPT);
             System.out.println("srl 1 1 2");
-            System.out.println("macro: zero(" + BPT + ", 1)");
+            System.out.println("macro: zero(" + BPT + ", 1)");  
+            System.out.println("macro: gpr(" + BPT + ") = enc(" + SBASE + ", uint)");
             System.out.println("j _" + headFunction);
             System.out.println();
         }
@@ -407,6 +475,7 @@ public class CodeGenerator {
             gmSize = 0;
         }
 
+        int gammaAddress = 0; 
         StringBuilder res = new StringBuilder();
         if (program){
             res.append("macro: gpr(" + HPT + ") = enc(" + HBASE + ", uint)\n");
@@ -415,13 +484,23 @@ public class CodeGenerator {
             res.append("subu 1 " + SPT + " " + BPT + "\n");
             res.append("srl 1 1 2\n");
             res.append("macro: zero(" + BPT + ", 1)\n");
+            res.append("macro: gpr(" + BPT + ") = enc(" + SBASE + ", uint)\n");
             res.append("j _" + headFunction + "\n\n");
+            gammaAddress = Context.programInit;
         }
 
-        res.append("_main:\n");
+        res.append(headFunction + "\n");
         List<String> mainInstructions = functionInstructions.get(headFunction);
         res.append(String.join("\n", mainInstructions))
                 .append("\n");
+        
+        for(String instr: mainInstructions){
+            if (instr.equals("macro: save-user")) {
+                Context.gammaAddress = gammaAddress;
+            }
+            gammaAddress += instructionRealSize(instr);
+        } 
+        System.out.println(gammaAddress);
 
         functionInstructions.forEach((key, value) -> {
             if (!key.equals(headFunction)) {
@@ -430,6 +509,16 @@ public class CodeGenerator {
                         .append("\n");
             }
         });
+
+        // gamma address bootloader jumps in case no reset. 
+        for (Map.Entry<String, List<String>> entry : functionInstructions.entrySet()) {
+            for (String instr : entry.getValue()) {
+                if (instr.equals("macro: save-user")) {
+                    Context.gammaAddress = gammaAddress;
+                }
+                gammaAddress += instructionRealSize(instr);
+            }
+        }
         return res.toString();
     }
 
@@ -455,26 +544,30 @@ public class CodeGenerator {
             res.add("subu 1 " + SPT + " " + BPT + "\n");
             res.add("srl 1 1 2\n");
             res.add("macro: zero(" + BPT + ", 1)\n");
-            res.add("j _" + headFunction + "\n\n");
+            res.add("macro: gpr(" + BPT + ") = enc(" + SBASE + ", uint)\n");
+            res.add("j _" + headFunction + "\n");
         }
 
-        res.add("_main:\n");
-        List<String> mainInstructions = functionInstructions.get(headFunction);
-        res.add(String.join("\n", mainInstructions));
-        res.add("\n");
+        
 
         functionInstructions.forEach((key, value) -> {
             if (!key.equals(headFunction)) {
-                res.add("\n_");
-                res.add(key);
-                res.add(":\n");
+                res.add("\n_" + key + ":\n");
                 res.add(String.join("\n", value));
                 res.add("\n");
             }
         });
 
+        res.add("\n");
+        res.add("_" + headFunction + ":\n");
+        List<String> mainInstructions = functionInstructions.get(headFunction);
+        for(String inst : mainInstructions){
+            res.add(inst + "\n");
+        }
+
         return res; 
     }
+
 
     public void generateLoop(DTE dte) throws Exception {
         checkTokenType(dte, "while");
@@ -488,18 +581,19 @@ public class CodeGenerator {
         assert bodyNode != null;
 
 
-        int before = instructionsSize();
+        int before = instructionsRealSize();
         VarReg expression = evaluateBooleanExpression(expressionNode);
-        int expressionCodeSize = instructionsSize() - before;
+        int expressionCodeSize = instructionsRealSize() - before;
 
-
+        Configuration.getInstance().freeRegister(expression.register);
         // need to add branch jump of size |code(whileBody)| + 2
-        before = instructionsSize();
+        before = instructionsRealSize();
+        int index = instructionsSize();
         generateStS(bodyNode);
-        int bodySize = instructionsSize() - before;
+        int bodySize = instructionsRealSize() - before;
 
         String instr = Instruction.beqz(expression.register, bodySize + 2);
-        addInstruction(before, instr);
+        addInstruction(index, instr);
 
         // jump back to start of loop
         int jumpBackSize = -(expressionCodeSize + bodySize + 1);
@@ -517,13 +611,16 @@ public class CodeGenerator {
         DTE ifConditionNode = dte.getBrother();
         DTE ifPart = dte.getNthBrother(3);
 
+
         VarReg ifCondition = evaluateBooleanExpression(ifConditionNode);
 
-        int before = instructionsSize();
+        int before = instructionsRealSize();
+        int index = instructionsSize();
+        Configuration.getInstance().freeRegister(ifCondition.register);
         generateStS(ifPart);
-        int ifPartSize = instructionsSize() - before;
+        int ifPartSize = instructionsRealSize() - before;
 
-        addInstruction(before, Instruction.beqz(ifCondition.register, ifPartSize + 1));
+        addInstruction(index, Instruction.beqz(ifCondition.register, ifPartSize + 1));
     }
 
     public void generateIfElseStatement(DTE ifElse) throws Exception {
@@ -537,17 +634,20 @@ public class CodeGenerator {
         VarReg ifCondition = evaluateBooleanExpression(ifConditionNode);
 
         // need to add branch jump of size |code(ifPart)| + 2
-        int before = instructionsSize();
+        int before = instructionsRealSize();
+        int index = instructionsSize();
+        Configuration.getInstance().freeRegister(ifCondition.register);
         generateStS(ifPart);
-        int ifPartSize = instructionsSize() - before;
+        int ifPartSize = instructionsRealSize() - before;
 
-        addInstruction(before, Instruction.beqz(ifCondition.register, ifPartSize + 2));
+        addInstruction(index, Instruction.beqz(ifCondition.register, ifPartSize + 2));
 
-        before = instructionsSize();
+        before = instructionsRealSize();
+        index = instructionsSize();
         generateStS(elsePart);
-        int elsePartSize = instructionsSize() - before;
+        int elsePartSize = instructionsRealSize() - before;
 
-        addInstruction(before, Instruction.blez(0, elsePartSize + 1));
+        addInstruction(index, Instruction.blez(0, elsePartSize + 1));
     }
 
     private void generateRSt(DTE rSt, FunctionCall call) throws Exception {
@@ -620,6 +720,70 @@ public class CodeGenerator {
             Configuration.getInstance().freeRegister(expr.register);
             index++;
         }
+    }
+
+    private void setParametersRegisterList(List<Integer> registers, Fun function, DTE paS) throws Exception {
+        checkTokenType(paS, "<PaS>");
+        List<Map.Entry<String, Variable>> params = function
+                .getMemoryStruct()
+                .getType()
+                .getStructComponentNamesSortedByDisplacement();
+//                .subList(0, function.getNumParameters());
+
+        int index = 0;
+        List<DTE> paSFlattened = paS.getFlattenedSequence();
+        if (paSFlattened.size() != function.getNumParameters()) {
+            throw new IllegalArgumentException("Incorrect number of params! expected: " + function.getNumParameters() + ", got: " + paSFlattened.size());
+        }
+        for (DTE pa : paSFlattened) {
+    
+            Variable parameter = params.get(index).getValue();
+            Integer reg = registers.get(index);
+            int imm = -function.getSize() + parameter.getDisplacement();
+            CodeGenerator.getInstance().addInstruction(Instruction.sw(reg, SPT, imm));
+            Configuration.getInstance().freeRegister(reg);
+            index++;
+        }
+    }
+
+
+    private List<Integer> getParametersRegisterList(Fun function, DTE paS) throws Exception {
+        checkTokenType(paS, "<PaS>");
+        List<Map.Entry<String, Variable>> params = function
+                .getMemoryStruct()
+                .getType()
+                .getStructComponentNamesSortedByDisplacement();
+//                .subList(0, function.getNumParameters());
+
+        int index = 0;
+        List<Integer> registers = new LinkedList<>();
+        List<DTE> paSFlattened = paS.getFlattenedSequence();
+        if (paSFlattened.size() != function.getNumParameters()) {
+            throw new IllegalArgumentException("Incorrect number of params! expected: " + function.getNumParameters() + ", got: " + paSFlattened.size());
+        }
+        for (DTE pa : paSFlattened) {
+            checkTokenType(pa, "<Pa>");
+            VarReg expr;
+            pa = pa.getFirstSon();
+            if (pa.isType("<E>")) {
+                expr = evaluateExpression(pa);
+            } else if (pa.isType("<BE>")) {
+                expr = evaluateBooleanExpression(pa);
+            } else if (pa.isType("<CC>")) {
+                expr = evaluateCharacterConstant(pa);
+            } else throw new IllegalArgumentException("Grammar error on " + paS.getBorderWord());
+
+            Variable parameter = params.get(index).getValue();
+
+            checkSameTypes(parameter.getType(), expr.type);
+
+            registers.add(expr.register);
+
+            int imm = -function.getSize() + parameter.getDisplacement();
+    
+            index++;
+        }
+        return registers;
     }
 
     public void initializeLocalVariables(Fun function) {

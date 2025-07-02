@@ -8,6 +8,8 @@ import tree.DTE;
 
 import java.util.*;
 
+import javax.management.RuntimeErrorException;
+
 import static util.Logger.log;
 import static util.TypeUtils.checkTokenType;
 
@@ -126,13 +128,18 @@ public class TypeTable implements Table {
     }
 
     @Override
-    public void fillTable(DTE tyds) throws Exception {
+    public void fillTable(DTE tyds) {
         checkTokenType(tyds, "<TyDS>");
 
         // TyDS -> TyD1, TyD2
         List<DTE> flattenedSequence = tyds.getFlattenedSequence();
         for (DTE tyD : flattenedSequence) {
-            readTypeDefinition(tyD);
+            try {
+                readTypeDefinition(tyD);
+            }
+            catch(Exception e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 

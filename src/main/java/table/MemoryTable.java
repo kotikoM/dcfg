@@ -51,17 +51,29 @@ public class MemoryTable implements Table {
     }
 
     @Override
-    public void fillTable(DTE vads) throws Exception {
+    public void fillTable(DTE vads) {
         checkTokenType(vads, "<VaDS>");
 
         List<List<String>> componentPairs = vads.extractComponentPairs();
         String name = "$gm";
 
         VarType.Builder structBuilder = VarType.createStructTypeBuilder(componentPairs, name);
-        VarType varType = TypeTable.getInstance().createStructType(structBuilder);
+        VarType varType = null; 
+        try {
+            varType = TypeTable.getInstance().createStructType(structBuilder);
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         Variable gm = new Variable(name, Context.BPT, varType, 0);
-        addMemory(gm);
+        try {
+            addMemory(gm);    
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        
     }
 
     public Variable gm() throws MemoryStructException {

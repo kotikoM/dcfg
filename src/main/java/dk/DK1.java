@@ -56,7 +56,7 @@ public class DK1 implements Serializable {
             currentState.makeShiftMoves(states, grammar);
 
             if ((int) (states.size() / 31.97) > completionPercentage) {
-                completionPercentage = (int) (states.size() / 31.97);
+                completionPercentage = (int) (states.size() / (31.97 * 114 / 100));
                 log("DK1 Automaton Progress: " + completionPercentage + "%");
             }
 

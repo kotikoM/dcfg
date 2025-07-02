@@ -2,6 +2,8 @@ package dk;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.temporal.Temporal;
+
 import grammar.Grammar;
 
 import static util.Logger.log;
@@ -9,8 +11,8 @@ import static util.Logger.log;
 public class GenerateAutomaton {
     private static final String BINARYFILE = "src/main/java/dk/DK1.bin";
     private static DK1 AUTOMATON;
-    private static final String TerminalsFile = "src/main/java/dk/DoNotTouchGrammar.txt";
-    private static final String GrammarFile = "src/main/java/dk/DoNotTouchTerminals.txt";
+    private static final String GrammarFile = "src/main/java/dk/DoNotTouchGrammar.txt";
+    private static final String TerminalsFile = "src/main/java/dk/DoNotTouchTerminals.txt";
 
     
     public static DK1 generateAutomaton(String grammarFilePath, String terminalFilePath, Grammar g){
@@ -21,20 +23,28 @@ public class GenerateAutomaton {
         String oldGrammar = readFromFile(GrammarFile);
         String oldTerminals = readFromFile(TerminalsFile);
 
-        boolean modified = false;
+        boolean modifiedG = false;
+        boolean modifiedT = false; 
 
         if (!modifiedGrammar.equals(oldGrammar)){
-            modified = true;
-            writeToFile(modifiedGrammar, GrammarFile);
+            modifiedG = true;
         } 
 
         if (modifiedTerminals.equals(oldTerminals)){
-            modified = true;
-            writeToFile(modifiedTerminals, TerminalsFile);
+            modifiedT = true;
         }
 
-        if (modified){
-            generateForGrammar(g);
+        if (modifiedG || modifiedT){
+            boolean testResult = generateForGrammar(g);
+            
+            if (testResult && modifiedG){
+                writeToFile(modifiedGrammar, GrammarFile);
+            }
+
+            if (testResult & modifiedT){
+                writeToFile(modifiedTerminals, TerminalsFile);
+            }
+
         }
         else {
             loadFromBinary();
@@ -63,20 +73,23 @@ public class GenerateAutomaton {
         }
     }
 
-    public static void generateForGrammar(Grammar g){
+    public static boolean generateForGrammar(Grammar g){
 
         long startTime = System.currentTimeMillis();
         AUTOMATON = new DK1(g);
         long endTime = System.currentTimeMillis();
 
-        System.out.println("Generation completed in " + (endTime - startTime) + "ms");
+        log("Generation completed in " + (endTime - startTime) + "ms");
         log("number of states: " + AUTOMATON.getStates().size());
         log("-----------------------");
-        log("DK1 test passed = " + AUTOMATON.dk1Test());
+        boolean testResult = AUTOMATON.dk1Test();
+        log("DK1 test passed = " + testResult);
         log("-----------------------");
         log("\n");
-
-        saveToBinaryFile();
+        if (testResult){
+            saveToBinaryFile();
+        }
+        return testResult;
     }
     
 
@@ -101,7 +114,7 @@ public class GenerateAutomaton {
 
         long endTime = System.currentTimeMillis();
         
-        System.out.println("Loading completed in " + (endTime - startTime) + "ms");
+        log("Loading completed in " + (endTime - startTime) + "ms");
         log("number of states: " + AUTOMATON.getStates().size());
         log("-----------------------");
         log("\n");
@@ -119,20 +132,6 @@ public class GenerateAutomaton {
             throw new RuntimeException("Failed to save automaton to binary", e);
         }
     }
-    
-
-    public static void main(String args[]) throws Exception{
-        String grammarFilePath = "src/main/java/grammar/Grammar.txt";
-        String terminalsFilePath = "src/main/java/grammar/Terminals.txt";
-        Grammar g = new Grammar(grammarFilePath, terminalsFilePath);
-        
-        // GenerateAutomaton.generateForGrammar(g);
-        GenerateAutomaton.loadFromBinary();
-        DK1 dk1 = GenerateAutomaton.AUTOMATON;
-        // System.out.println(dk1);
-
-    }
-    
     
 }
 

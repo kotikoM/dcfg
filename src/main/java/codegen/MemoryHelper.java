@@ -12,11 +12,11 @@ public class MemoryHelper {
                 Instruction.addi(HPT, HPT, size),
                 Instruction.subi(1, HPT, HMAX),
                 Instruction.bltz(1, 4),
-                "macro: gpr(1) = enc(22, uint)",
+                "macro: gpr(1) = enc(42, uint)",
                 Instruction.sysc(),
                 Instruction.addi(1, HPT, -size),
                 Instruction.addi(2, 0, size / 4),
-                "zero(1, 2)"
+                "macro: zero(1, 2)"
         ).forEach(CodeGenerator.getInstance()::addInstruction);
     }
 
@@ -26,7 +26,7 @@ public class MemoryHelper {
                 Instruction.addi(reg, SPT, size),
                 Instruction.subi(reg, reg, SMAX),
                 Instruction.blez(reg, 4),
-                "macro: gpr(1) = enc(44, uint)",
+                "macro: gpr(1) = enc(41, uint)",
                 Instruction.sysc(),
                 Instruction.addi(SPT, SPT, size + 8)
         ).forEach(CodeGenerator.getInstance()::addInstruction);
@@ -39,7 +39,7 @@ public class MemoryHelper {
                 Instruction.addi(reg, SPT, size),
                 Instruction.subi(reg, reg, SMAX),
                 Instruction.blez(reg, 4),
-                "macro: gpr(1) = enc(44, uint)",
+                "macro: gpr(1) = enc(41, uint)",
                 Instruction.sysc(),
                 Instruction.addi(SPT, SPT, size + 4)
         ).forEach(CodeGenerator.getInstance()::addInstruction);

@@ -10,4 +10,9 @@ public class Context {
     public static int SMAX = 32;
     public static int RA = 31;
     public static boolean DEBUG = true;
+    // only for abstract kernel
+    public static int programInit = 14; // number of words preceding program;
+    public static int gammaAddress = 1564; // address of gamma - save user begins in abstract kernel.  
+    public static int bootLoaderInit = 4;
+    public static int removedStatementsForBootLoader = 3;
 }

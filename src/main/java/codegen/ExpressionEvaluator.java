@@ -181,30 +181,40 @@ public class ExpressionEvaluator {
     }
 
     private static VarReg evaluateSignedBinaryOperation(int leftRegister, int rightRegister, DTE binOp) {
+        int freeReg = Configuration.getInstance().getFirstFreeRegister();
         String instr = switch (binOp.labelContent()) {
             case "+" -> Instruction.add(leftRegister, leftRegister, rightRegister);
             case "-" -> Instruction.sub(leftRegister, leftRegister, rightRegister);
             case "*" -> "macro: mul(" + leftRegister + ", " + leftRegister + ", " + rightRegister + ")";
-            case "/" -> "macro: divt(" + leftRegister + ", " + leftRegister + ", " + rightRegister + ")";
+            case "/" -> "macro: divt(" + freeReg + ", " + leftRegister + ", " + rightRegister + ")";
             default -> throw new IllegalArgumentException("Expected binary operator, got " + binOp.labelContent());
         };
 
         cg().addInstruction(instr);
         Configuration.getInstance().freeRegister(rightRegister);
+        if (binOp.labelContent().equals("/")){
+            Configuration.getInstance().freeRegister(leftRegister);
+            return new VarReg(freeReg, VarType.INT_TYPE);
+        }
         return new VarReg(leftRegister, VarType.INT_TYPE);
     }
 
     private static VarReg evaluateUnsignedBinaryOperation(int leftRegister, int rightRegister, DTE binOp) {
+        int freeReg = Configuration.getInstance().getFirstFreeRegister();
         String instr = switch (binOp.labelContent()) {
             case "+" -> Instruction.addu(leftRegister, leftRegister, rightRegister);
             case "-" -> Instruction.subu(leftRegister, leftRegister, rightRegister);
             case "*" -> "macro: mul(" + leftRegister + ", " + leftRegister + ", " + rightRegister + ")";
-            case "/" -> "macro: divu(" + leftRegister + ", " + leftRegister + ", " + rightRegister + ")";
+            case "/" -> "macro: divu(" + freeReg + ", " + leftRegister + ", " + rightRegister + ")";
             default -> throw new IllegalArgumentException("Expected binary operator, got " + binOp.labelContent());
         };
 
         cg().addInstruction(instr);
         Configuration.getInstance().freeRegister(rightRegister);
+        if (binOp.labelContent().equals("/")){
+            Configuration.getInstance().freeRegister(leftRegister);
+            return new VarReg(freeReg, VarType.UINT_TYPE);
+        }
         return new VarReg(leftRegister, VarType.UINT_TYPE);
     }
 
@@ -264,7 +274,7 @@ public class ExpressionEvaluator {
 
         switch(binOp){
             case "<" -> inst.add(Instruction.slt(leftReg, leftReg, rightReg));
-            case ">" -> inst.add(Instruction.slt(leftReg, rightReg, rightReg));
+            case ">" -> inst.add(Instruction.slt(leftReg, rightReg, leftReg));
             case "<=" -> {
                         inst.add(Instruction.slt(leftReg, rightReg, leftReg));
                         inst.add(Instruction.xori(leftReg, leftReg, 1));
@@ -287,7 +297,7 @@ public class ExpressionEvaluator {
 
         switch(binOp){
             case "<" -> inst.add(Instruction.sltu(leftReg, leftReg, rightReg));
-            case ">" -> inst.add(Instruction.sltu(leftReg, rightReg, rightReg));
+            case ">" -> inst.add(Instruction.sltu(leftReg, rightReg, leftReg));
             case "<=" -> {
                         inst.add(Instruction.sltu(leftReg, rightReg, leftReg));
                         inst.add(Instruction.xori(leftReg, leftReg, 1));
